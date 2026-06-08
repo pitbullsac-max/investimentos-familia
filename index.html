@@ -233,7 +233,7 @@ body.privacy .badge{ filter:blur(7px); opacity:.55; }
   </div>
 </div>
 
-<div id="upload-overlay">
+<div id="upload-overlay" style="display:none">
   <div class="upload-box" id="dropzone"
     ondragover="event.preventDefault();this.classList.add('drag')"
     ondragleave="this.classList.remove('drag')"
@@ -574,7 +574,6 @@ window.ADMIN = {
             </div>
           </div>`).join('')}
         </div>`;
-        </div>`;
 
       // Event delegation — mais confiável que onclick inline em template string
       document.getElementById('userList').addEventListener('click', e => {
@@ -583,8 +582,9 @@ window.ADMIN = {
       });
 
     }catch(e){
-
-  // ── DETALHE DO USUÁRIO ────────────────────────────────────────
+      el.innerHTML=`<div class="empty">Erro ao carregar: ${e.message}<br><small>Verifique as regras do Firestore.</small></div>`;
+    }
+  },
   async openUser(uid){
     const el = document.getElementById('adminPanel');
     if(!el) return;
