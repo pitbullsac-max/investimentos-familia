@@ -551,10 +551,10 @@ window.ADMIN = {
         </div>
         <div id="userList">
           ${users.map(u=>`
-          <div class="user-row">
+          <div class="user-row" onclick="ADMIN.openUser('${u.uid}')" style="cursor:pointer;transition:background .15s" onmouseenter="this.style.background='var(--surf2)'" onmouseleave="this.style.background=''">
             <div class="user-info">
               ${u.foto
-                ? `<img src="${u.foto}" style="width:32px;height:32px;border-radius:50%;object-fit:cover">`
+                ? `<img src="${u.foto}" style="width:36px;height:36px;border-radius:50%;object-fit:cover">`
                 : `<div class="user-av">${(u.nome||u.email||'?')[0].toUpperCase()}</div>`}
               <div>
                 <div style="font-weight:600;font-size:13px;display:flex;align-items:center;gap:6px">
@@ -565,14 +565,175 @@ window.ADMIN = {
                 ${u.ultimoAcesso?`<div class="seg">Último acesso: ${new Date(u.ultimoAcesso).toLocaleString('pt-BR')}</div>`:''}
               </div>
             </div>
-            <div style="text-align:right">
-              <div style="font-size:12px;color:var(--muted)">${u.perfis} carteira(s) · ${u.ativos} ativo(s)</div>
-              ${u.tradeLiq>0?`<div style="font-size:12px;color:var(--green);font-weight:600">Trade líq.: ${u.tradeLiq.toLocaleString('pt-BR',{style:'currency',currency:'BRL',minimumFractionDigits:0})}</div>`:''}
+            <div style="display:flex;align-items:center;gap:12px">
+              <div style="text-align:right">
+                <div style="font-size:12px;color:var(--muted)">${u.perfis} carteira(s) · ${u.ativos} ativo(s)</div>
+                ${u.tradeLiq>0?`<div style="font-size:12px;color:var(--green);font-weight:600">Trade líq.: ${u.tradeLiq.toLocaleString('pt-BR',{style:'currency',currency:'BRL',minimumFractionDigits:0})}</div>`:''}
+              </div>
+              <span style="font-size:18px;color:var(--muted)">›</span>
             </div>
           </div>`).join('')}
         </div>`;
     }catch(e){
       el.innerHTML=`<div class="empty">Erro ao carregar: ${e.message}<br><small>Verifique as regras do Firestore.</small></div>`;
+    }
+  },
+
+  // ── DETALHE DO USUÁRIO ────────────────────────────────────────
+  async openUser(uid){
+    const el = document.getElementById('adminPanel');
+    if(!el) return;
+    el.innerHTML = '<div class="empty">Carregando dados do usuário...</div>';
+
+    try{
+      // Busca dados do usuário
+      const infoSnap  = await getDoc(doc(DB,'usuarios',uid));
+      const info      = infoSnap.exists() ? infoSnap.data() : {};
+      const perfisSnap = await getDoc(doc(DB,'usuarios',uid,'dados','perfis'));
+      const perfis    = perfisSnap.exists() ? (perfisSnap.data().lista||[]) : [];
+      const dashSnap  = await getDoc(doc(DB,'usuarios',uid,'dados','dashboard'));
+      const dash      = dashSnap.exists() ? dashSnap.data() : null;
+
+      const nome = info.nome || info.email || uid;
+      const foto = info.foto;
+
+      // Monta o HTML do detalhe
+      el.innerHTML = `
+        <!-- Cabeçalho do usuário -->
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:1.25rem;padding-bottom:1rem;border-bottom:1px solid var(--bdr)">
+          <button onclick="ADMIN.loadPanel()" style="background:var(--surf2);border:1px solid var(--bdr);border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;color:var(--txt)">← Voltar</button>
+          ${foto
+            ? `<img src="${foto}" style="width:40px;height:40px;border-radius:50%;object-fit:cover">`
+            : `<div class="user-av" style="width:40px;height:40px;font-size:16px">${nome[0].toUpperCase()}</div>`}
+          <div>
+            <div style="font-weight:700;font-size:16px">${nome}</div>
+            <div class="seg">${info.email||'—'}</div>
+          </div>
+        </div>
+
+        <!-- Trade -->
+        <div id="ud_trade"></div>
+
+        <!-- Carteiras -->
+        <div id="ud_carteiras"></div>`;
+
+      // Renderiza Trade se tiver dados
+      const udTrade = document.getElementById('ud_trade');
+      if(dash?.payload){
+        const {monthly, totalAportado, totalSacado, aportes, saques} = dash.payload;
+        const totSacado = totalSacado||0;
+        if(monthly?.length){
+          const ult = monthly[monthly.length-1];
+          const sB=ult.acumBruto, sL=ult.acumLiq;
+          const lL=sL-(totalAportado||0);
+          const pL=(totalAportado||0)>0?(lL/(totalAportado||0))*100:0;
+          const updDate = dash.updatedAt ? new Date(dash.updatedAt).toLocaleString('pt-BR') : '—';
+          udTrade.innerHTML = `
+            <div class="card" style="margin-bottom:1rem">
+              <div class="card-header">
+                <span class="card-title">📈 Trade — Alto Rendimento</span>
+                <span class="seg">${updDate}</span>
+              </div>
+              <div class="metrics" style="margin-top:.75rem">
+                <div class="mc"><div class="ml">Saldo bruto</div><div class="mv neutral">${fmt(sB)}</div><div class="ms muted">antes IR</div></div>
+                <div class="mc"><div class="ml">Saldo líquido</div><div class="mv green">${fmt(sL)}</div><div class="ms muted">aportado: ${fmt(totalAportado||0)}</div></div>
+                <div class="mc"><div class="ml">Lucro líquido</div><div class="mv green">${fmt(lL)}</div><div class="ms green">${fmtP(pL)} sobre aportado</div></div>
+                <div class="mc"><div class="ml">${ult.label} líq.</div><div class="mv ${ult.liqMen>=0?'green':'red'}">${fmt(ult.liqMen)}</div><div class="ms muted">IR: ${fmt(ult.desconto)}</div></div>
+                ${totSacado>0?`<div class="mc"><div class="ml">Total sacado</div><div class="mv red">${fmt(totSacado)}</div><div class="ms muted">${(saques||[]).length} retirada(s)</div></div>`:''}
+              </div>
+              <!-- Gráfico evolução -->
+              <div style="margin-top:.75rem">
+                <div class="card-title" style="margin-bottom:.5rem">Evolução acumulado líquido</div>
+                <div class="cw h200"><canvas id="ud_histChart"></canvas></div>
+              </div>
+              <!-- Aportes e Saques -->
+              <div class="g2" style="margin-top:.75rem">
+                <div>
+                  <div class="card-title" style="margin-bottom:.5rem">💸 Aportes</div>
+                  <div class="table-wrap" style="max-height:180px"><table><thead><tr><th>Período</th><th>Valor</th></tr></thead><tbody>
+                    ${(aportes||[]).length
+                      ? (aportes||[]).map(a=>`<tr><td>${a.data||'—'}</td><td style="color:var(--green);font-weight:600">${fmt(a.valor)}</td></tr>`).join('')
+                      : '<tr><td colspan="2" style="text-align:center;color:var(--muted)">Nenhum aporte</td></tr>'}
+                  </tbody></table></div>
+                  <div style="display:flex;justify-content:space-between;padding-top:8px;border-top:1px solid var(--bdr);margin-top:8px">
+                    <span class="seg">Total</span><strong style="color:var(--green)">${fmt(totalAportado||0)}</strong>
+                  </div>
+                </div>
+                <div>
+                  <div class="card-title" style="margin-bottom:.5rem">🏦 Saques / Baixas</div>
+                  <div class="table-wrap" style="max-height:180px"><table><thead><tr><th>Período</th><th>Valor</th></tr></thead><tbody>
+                    ${(saques||[]).length
+                      ? (saques||[]).map(a=>`<tr><td>${a.data||'—'}</td><td style="color:var(--red);font-weight:600">${fmt(a.valor)}</td></tr>`).join('')
+                      : '<tr><td colspan="2" style="text-align:center;color:var(--muted)">Nenhum saque</td></tr>'}
+                  </tbody></table></div>
+                  <div style="display:flex;justify-content:space-between;padding-top:8px;border-top:1px solid var(--bdr);margin-top:8px">
+                    <span class="seg">Total</span><strong style="color:${totSacado>0?'var(--red)':'var(--muted)'}">${fmt(totSacado)}</strong>
+                  </div>
+                </div>
+              </div>
+            </div>`;
+
+          // Renderiza gráfico
+          setTimeout(()=>{
+            const ctx = document.getElementById('ud_histChart');
+            if(!ctx) return;
+            const labels = monthly.map(m=>m.label||'');
+            const data   = monthly.map(m=>m.acumLiq||0);
+            new Chart(ctx,{
+              type:'line',
+              data:{labels,datasets:[{data,borderColor:'#22c55e',backgroundColor:'rgba(34,197,94,.08)',fill:true,tension:.4,pointRadius:2,borderWidth:2}]},
+              options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:i=>' '+fmt(i.raw)}}},scales:{x:{grid:{display:false},ticks:{color:'#64748b',font:{size:9},maxTicksLimit:12}},y:{grid:{color:'rgba(100,116,139,.1)'},ticks:{color:'#64748b',font:{size:9},callback:v=>'R$'+(v/1000).toFixed(0)+'k'}}}}
+            });
+          }, 100);
+        }
+      } else {
+        udTrade.innerHTML = `<div class="card" style="margin-bottom:1rem"><div class="empty">Sem dados de trade — usuário ainda não fez upload da planilha.</div></div>`;
+      }
+
+      // Renderiza Carteiras
+      const udCart = document.getElementById('ud_carteiras');
+      if(perfis.length){
+        udCart.innerHTML = perfis.map(p=>{
+          const ativos = p.ativos||[];
+          const totalInv = ativos.reduce((s,a)=>s+(a.qtd*a.precoMedio),0);
+          const totalAtual = ativos.reduce((s,a)=>s+(a.qtd*(a.precoAtual||a.precoMedio)),0);
+          const lucro = totalAtual - totalInv;
+          const pLucro = totalInv>0?(lucro/totalInv)*100:0;
+          return `
+          <div class="card" style="margin-bottom:1rem">
+            <div class="card-header">
+              <span class="card-title">💼 ${p.nome||'Carteira'}</span>
+              <span class="seg">${ativos.length} ativo(s)</span>
+            </div>
+            <div class="metrics" style="margin-top:.75rem">
+              <div class="mc"><div class="ml">Investido</div><div class="mv blue">${fmt(totalInv)}</div></div>
+              <div class="mc"><div class="ml">Valor atual</div><div class="mv blue">${fmt(totalAtual)}</div></div>
+              <div class="mc"><div class="ml">Lucro</div><div class="mv ${lucro>=0?'green':'red'}">${fmt(lucro)}</div><div class="ms ${lucro>=0?'green':'red'}">${fmtP(pLucro)}</div></div>
+            </div>
+            ${ativos.length?`
+            <div class="table-wrap" style="margin-top:.75rem;max-height:260px">
+              <table><thead><tr><th>Ticker</th><th>Qtd</th><th>P.Médio</th><th>P.Atual</th><th>Investido</th><th>Atual</th><th>Lucro</th></tr></thead>
+              <tbody>${ativos.map(a=>{
+                const inv=a.qtd*a.precoMedio, atu=a.qtd*(a.precoAtual||a.precoMedio), lc=atu-inv, pl=inv>0?(lc/inv)*100:0;
+                return `<tr>
+                  <td><strong>${a.ticker}</strong><br><span class="seg">${a.nome||''}</span></td>
+                  <td>${a.qtd}</td>
+                  <td>${fmt(a.precoMedio)}</td>
+                  <td>${fmt(a.precoAtual||a.precoMedio)}</td>
+                  <td>${fmt(inv)}</td>
+                  <td>${fmt(atu)}</td>
+                  <td style="color:${lc>=0?'var(--green)':'var(--red)'};font-weight:600">${fmt(lc)}<br><span class="seg">${fmtP(pl)}</span></td>
+                </tr>`;}).join('')}
+              </tbody></table>
+            </div>`:''}
+          </div>`;
+        }).join('');
+      } else {
+        udCart.innerHTML = `<div class="card"><div class="empty">Sem carteiras cadastradas.</div></div>`;
+      }
+
+    }catch(e){
+      el.innerHTML=`<button onclick="ADMIN.loadPanel()" style="margin-bottom:1rem;background:var(--surf2);border:1px solid var(--bdr);border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;color:var(--txt)">← Voltar</button><div class="empty">Erro ao carregar: ${e.message}</div>`;
     }
   }
 };
