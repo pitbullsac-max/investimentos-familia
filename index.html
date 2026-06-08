@@ -551,7 +551,7 @@ window.ADMIN = {
         </div>
         <div id="userList">
           ${users.map(u=>`
-          <div class="user-row" onclick="ADMIN.openUser('${u.uid}')" style="cursor:pointer;transition:background .15s" onmouseenter="this.style.background='var(--surf2)'" onmouseleave="this.style.background=''">
+          <div class="user-row">
             <div class="user-info">
               ${u.foto
                 ? `<img src="${u.foto}" style="width:36px;height:36px;border-radius:50%;object-fit:cover">`
@@ -570,14 +570,19 @@ window.ADMIN = {
                 <div style="font-size:12px;color:var(--muted)">${u.perfis} carteira(s) · ${u.ativos} ativo(s)</div>
                 ${u.tradeLiq>0?`<div style="font-size:12px;color:var(--green);font-weight:600">Trade líq.: ${u.tradeLiq.toLocaleString('pt-BR',{style:'currency',currency:'BRL',minimumFractionDigits:0})}</div>`:''}
               </div>
-              <span style="font-size:18px;color:var(--muted)">›</span>
+              <button class="btn-sm" style="white-space:nowrap;background:linear-gradient(135deg,#eff6ff,#dbeafe);border-color:#bfdbfe;color:#1d4ed8;font-weight:600;gap:4px" data-uid="${u.uid}">Ver detalhe →</button>
             </div>
           </div>`).join('')}
         </div>`;
+        </div>`;
+
+      // Event delegation — mais confiável que onclick inline em template string
+      document.getElementById('userList').addEventListener('click', e => {
+        const btn = e.target.closest('button[data-uid]');
+        if(btn) ADMIN.openUser(btn.dataset.uid);
+      });
+
     }catch(e){
-      el.innerHTML=`<div class="empty">Erro ao carregar: ${e.message}<br><small>Verifique as regras do Firestore.</small></div>`;
-    }
-  },
 
   // ── DETALHE DO USUÁRIO ────────────────────────────────────────
   async openUser(uid){
