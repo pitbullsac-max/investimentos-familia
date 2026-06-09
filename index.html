@@ -412,17 +412,17 @@ body.privacy .badge{ filter:blur(7px); opacity:.55; }
 
 <!-- ══ MODAL ADMIN ══════════════════════════════════════════════ -->
 <div class="modal-bg" id="modalAdmin" onclick="if(event.target===this)closeAdmin()">
-  <div class="modal" style="max-width:700px">
+  <div class="modal" style="max-width:760px;max-height:90vh;display:flex;flex-direction:column">
     <div class="modal-head">
-      <div><h3>👑 Painel Administrativo</h3><div class="modal-sub">Visão geral de todos os usuários</div></div>
+      <div><h3 id="adminTitle">👑 Painel Administrativo</h3><div class="modal-sub" id="adminSub">Visão geral de todos os usuários</div></div>
       <button class="btn-ghost" onclick="closeAdmin()">✕</button>
     </div>
-    <div class="modal-body" id="adminContent">
+    <div class="modal-body" id="adminContent" style="overflow-y:auto;flex:1">
       <div class="empty">Carregando usuários...</div>
     </div>
     <div class="modal-foot">
       <button class="btn-sm" onclick="closeAdmin()">Fechar</button>
-      <button class="btn-primary" onclick="ADMIN.load()">↻ Atualizar</button>
+      <button class="btn-primary" id="btnAdminReload" onclick="ADMIN.load()">↻ Atualizar</button>
     </div>
   </div>
 </div>
@@ -586,8 +586,13 @@ window.ADMIN = {
     }
   },
   async openUser(uid){
-    const el = document.getElementById('adminPanel');
+    const el = document.getElementById('adminContent');
     if(!el) return;
+    // Atualiza título do modal e esconde botão Atualizar
+    const title = document.getElementById('adminTitle');
+    const sub   = document.getElementById('adminSub');
+    const btn   = document.getElementById('btnAdminReload');
+    if(btn) btn.style.display='none';
     el.innerHTML = '<div class="empty">Carregando dados do usuário...</div>';
 
     try{
@@ -602,16 +607,20 @@ window.ADMIN = {
       const nome = info.nome || info.email || uid;
       const foto = info.foto;
 
+      // Atualiza título do modal
+      if(title){ title.textContent = nome; }
+      if(sub){ sub.textContent = info.email||'—'; }
+
       // Monta o HTML do detalhe
       el.innerHTML = `
-        <!-- Cabeçalho do usuário -->
-        <div style="display:flex;align-items:center;gap:12px;margin-bottom:1.25rem;padding-bottom:1rem;border-bottom:1px solid var(--bdr)">
-          <button onclick="ADMIN.loadPanel()" style="background:var(--surf2);border:1px solid var(--bdr);border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;color:var(--txt)">← Voltar</button>
+        <!-- Botão voltar -->
+        <div style="margin-bottom:1.25rem;padding-bottom:1rem;border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:10px">
+          <button class="btn-sm" onclick="ADMIN.load();document.getElementById('adminTitle').textContent='👑 Painel Administrativo';document.getElementById('adminSub').textContent='Visão geral de todos os usuários';document.getElementById('btnAdminReload').style.display=''">← Voltar</button>
           ${foto
-            ? `<img src="${foto}" style="width:40px;height:40px;border-radius:50%;object-fit:cover">`
-            : `<div class="user-av" style="width:40px;height:40px;font-size:16px">${nome[0].toUpperCase()}</div>`}
+            ? `<img src="${foto}" style="width:36px;height:36px;border-radius:50%;object-fit:cover">`
+            : `<div class="user-av" style="width:36px;height:36px;font-size:15px">${nome[0].toUpperCase()}</div>`}
           <div>
-            <div style="font-weight:700;font-size:16px">${nome}</div>
+            <div style="font-weight:700;font-size:14px">${nome}</div>
             <div class="seg">${info.email||'—'}</div>
           </div>
         </div>
@@ -738,7 +747,10 @@ window.ADMIN = {
       }
 
     }catch(e){
-      el.innerHTML=`<button onclick="ADMIN.loadPanel()" style="margin-bottom:1rem;background:var(--surf2);border:1px solid var(--bdr);border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;color:var(--txt)">← Voltar</button><div class="empty">Erro ao carregar: ${e.message}</div>`;
+      if(document.getElementById('adminTitle')) document.getElementById('adminTitle').textContent='👑 Painel Administrativo';
+      if(document.getElementById('adminSub')) document.getElementById('adminSub').textContent='Visão geral de todos os usuários';
+      if(document.getElementById('btnAdminReload')) document.getElementById('btnAdminReload').style.display='';
+      el.innerHTML=`<button class="btn-sm" style="margin-bottom:1rem" onclick="ADMIN.load();document.getElementById('adminTitle').textContent='👑 Painel Administrativo';document.getElementById('btnAdminReload').style.display=''">← Voltar</button><div class="empty">Erro ao carregar: ${e.message}</div>`;
     }
   }
 };
